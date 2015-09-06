@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+	<body>
+		<div id="test"></div>
+		<script>
+			var React = require('react'),
+				$ = require('jquery')
+
+			var HelloMessage = React.createClass({displayName: "HelloMessage",
+				render: function() {
+					return React.createElement("div", null, "Hello", this.props.name)
+				}
+			})
+
+			React.render(React.createElement(HelloMessage, {name: "John"}), $('#test')[0])
+		</script>
+	</body>
+</html>
