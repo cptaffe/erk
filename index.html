@@ -2,47 +2,129 @@
 <html>
 	<head>
 		<style>
-			@import url(https://fonts.googleapis.com/css?family=Open+Sans);
-			#test {
+			@import url(https://fonts.googleapis.com/css?family=Roboto);
+			* {
+				margin: none;
+				padding: none;
+			}
+			body {
+				background-color: rgba(0, 0, 0, 0.7);
+
+				/* Fonts */
+				color: white;
 				font-size: 10pt;
-				font-family: "Open Sans", sans-serif;
+				font-family: "Roboto", sans-serif;
+			}
+			#messages {
+				margin: 10px;
+			}
+			.msg {
+				margin: 5px;
+			}
+			#response {
+				color: black;
+				font-size: inherit;
+				font-family: inherit;
+
+				background-color: rgba(255, 255, 255, 0.5);
+				outline: none;
+				resize: none;
+				border: none;
+
+				width: 100%;
+				position: absolute;
+				bottom: 0px;
+				left: 0px;
+				padding: 5px;
+				padding-bottom: 0px;
+
+				height: 25px;
 			}
 		</style>
 	</head>
 	<body>
-		<div id="test">...</div>
+		<div id="messages"></div>
+		<textarea id="response"></textarea>
 		<script>
-			var React = require('react'),
-				$ = require('jquery'),
+			'use strict';
+			var $ = require('jquery'),
 				irc = require('irc')
 
-			var Message = React.createClass({displayName: "Message",
-				render: function() {
-					return React.createElement("div", null, this.props.from + ' => ' + this.props.to + ': ' + this.props.message)
-				}
-			})
+			var config = {
+				userName: 'erktest',
+				realName: 'Erk Client Test',
+				server: 'irc.mozilla.org',
+				port: 6667,
+				channels: ['#firefox'],
+			}
 
-			var Join = React.createClass({displayName: "Join",
-				render: function() {
-					return React.createElement("div", null, this.props.who, ' has joined ', this.props.channel)
+			class Message {
+				constructor(message) {
+					this.message = message
 				}
-			})
 
-			var Part = React.createClass({displayName: "Part",
-				render: function() {
-					return React.createElement("div", null, this.props.who+' was kicked from '+this.props.channel+' by '+this.props.by+': '+this.props.reason)
+				render() {
+					var m = document.createElement('div')
+					$(m).text(this.message).addClass('msg')
+					return m
 				}
-			})
+			}
 
-			var Pm = React.createClass({displayName: "Pm",
-				render: function() {
-					return React.createElement("div", null, 'Got private message from '+this.props.nick+': '+this.props.message)
+			class MsgMessage {
+				constructor(from, to, message) {
+					this.message = new Message(from + ' => ' + to + ': ' + message)
 				}
-			})
 
-			var client = new irc.Client('irc.mozilla.org', 'erktest', {
-				channels: ['#firefox']
-			});
+				render() {
+					return this.message.render()
+				}
+			}
+
+			class JoinMessage {
+				constructor(who, channel) {
+					this.message = new Message(who + ' has joined ' + channel)
+				}
+
+				render() {
+					return this.message.render()
+				}
+			}
+
+			class PartMessage {
+				constructor(who, channel, reason) {
+					this.message = new Message(who + ' has left ' + channel + ': ' + reason)
+				}
+
+				render() {
+					return this.message.render()
+				}
+			}
+
+			class KickMessage {
+				constructor(who, channel, by, reason) {
+					this.message = new Message(who + ' was kicked from ' + channel + ' by ' + by + ': ' + reason)
+				}
+
+				render() {
+					return this.message.render()
+				}
+			}
+
+			class PmMessage {
+				constructor(nick, message) {
+					this.message = new Message('pm from ' + nick + ': ' + message)
+				}
+
+				render() {
+					return this.message.render()
+				}
+			}
+
+			function addMessage(msg) {
+				$('#messages').append(msg.render())
+			}
+
+			var client = new irc.Client('irc.mozilla.org', 'erktest', config);
 
 			// error handler
 			client.addListener('error', function(message) {
@@ -51,22 +133,38 @@
 
 			// message handler
 			client.addListener('message', function (from, to, message) {
-				React.render(React.createElement(Message, {from: from, to: to, message: message}), $('#test')[0])
+				addMessage(new MsgMessage(from, to, message))
 			});
 
 			// log other things
 			client.addListener('pm', function(nick, message) {
-				console.log('Got private message from '+nick+': '+message);
+				addMessage(new PmMessage(nick, message))
 			});
+
 			client.addListener('join', function(channel, who) {
-				React.render(React.createElement(Join, {who: who, channel: channel}), $('#test')[0])
+				addMessage(new JoinMessage(who, channel))
 			});
 			client.addListener('part', function(channel, who, reason) {
-				React.render(React.createElement(Part, {who: who, channel: channel}), $('#test')[0])
+				addMessage(new PartMessage(channel, who, reason))
 			});
 			client.addListener('kick', function(channel, who, by, reason) {
-				React.render(React.createElement(Kick, {who: who, channel: channel, by: by, reason: reason}), $('#test')[0])
+				addMessage(new KickMessage(channel, who, by, reason))
 			});
+
+			// submit on enter
+			$('#response').keypress(function (e) {
+				if (e.which == 13) {
+					var f = config.userName,
+						t = config.channels[0],
+						msg = $('#response').val()
+					client.say(t, msg)
+					// Must display own messages.
+					addMessage(new MsgMessage(f, t, msg))
+					$('#response').val('')
+					return false;
+				}
+			});
+
 		</script>
 	</body>
 </html>
