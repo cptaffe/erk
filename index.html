@@ -50,13 +50,7 @@
 			var $ = require('jquery'),
 				irc = require('irc')
 
-			var config = {
-				userName: 'erktest',
-				realName: 'Erk Client Test',
-				server: 'irc.mozilla.org',
-				port: 6667,
-				channels: ['#firefox'],
-			}
+			var config = require('./config.json')
 
 			class Message {
 				constructor(message) {
