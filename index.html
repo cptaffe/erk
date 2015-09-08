@@ -72,6 +72,7 @@
 				}
 
 				render() {
+					$(this.bundle.element).html('')
 					return this.bundle.element
 				}
 			}
@@ -103,7 +104,7 @@
 				}
 
 				connect() {
-					this.client.join(this.chan, function(from, to, message) {})
+					this.client.join(this.chan, null)
 				}
 			}
 
@@ -150,6 +151,31 @@
 				}
 			}
 
+			class TopicMessage extends Message {
+				constructor(channel, topic, nick, message) {
+					super(message)
+					this.chan = channel
+					this.topic = topic
+					this.nick = nick
+				}
+
+				toString() {
+					return this.nick+'@'+this.chan+', topic:\n'+this.topic
+				}
+			}
+
+			class JoinMessage extends Message {
+				constructor(channel, nick, message) {
+					super(message)
+					this.chan = channel
+					this.nick = nick
+				}
+
+				toString() {
+					return this.nick+'@'+this.chan+' joined'
+				}
+			}
+
 			class MessageView extends View {
 				constructor(bundle, msg) {
 					super(bundle)
@@ -159,7 +185,7 @@
 				render() {
 					let msg = this.msg
 					return $(super.render()).append(function(){
-						return $(document.createElement('pre')).text(msg)
+						return $(document.createElement('pre')).text(msg).css({'font-size': 10})
 					}())
 				}
 			}
@@ -208,12 +234,14 @@
 							msg.append(new NamesMessage(channel, names))
 							msg.render()
 						})
-						// client.addListener('topic', function(channel, topic, nick, message) {
-						// 	console.log(channel+' topic: '+topic+' set by '+nick)
-						// })
-						// client.addListener('join', function(channel, nick, message) {
-						// 	console.log(nick+' joined '+channel)
-						// })
+						client.addListener('topic', function(channel, topic, nick, message) {
+							msg.append(new TopicMessage(channel, topic, nick, message))
+							msg.render()
+						})
+						client.addListener('join', function(channel, nick, message) {
+							msg.append(new JoinMessage(channel, nick, message))
+							msg.render()
+						})
 						// client.addListener('part', function(channel, nick, reason, message) {
 						// 	console.log(nick+' left '+channel+': '+reason)
 						// })
