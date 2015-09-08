@@ -43,123 +43,176 @@
 		</style>
 	</head>
 	<body>
-		<div id="messages"></div>
-		<textarea id="response"></textarea>
+		<div id='content'></div>
 		<script>
 			'use strict';
-			var $ = require('jquery'),
+			let $ = require('jquery'),
 				irc = require('irc')
 
-			var config = require('./config.json')
+			let config = require('./config.json')
 
-			class Message {
-				constructor(message) {
-					this.message = message
+			class Bundle {
+				constructor(elem) {
+					this.elem = elem
+				}
+
+				get element() {
+					return this.elem
+				}
+			}
+
+			class View {
+				constructor(bundle) {
+					this.bundle = bundle
 				}
 
 				render() {
-					var m = document.createElement('div')
-					$(m).text(this.message).addClass('msg')
-					return m
+					return this.bundle.element
 				}
 			}
 
-			class MsgMessage {
-				constructor(from, to, message) {
-					this.message = new Message(from + ' => ' + to + ': ' + message)
+			class ListView extends View {
+				constructor(bundle, view, elems) {
+					super(bundle)
+					this.view = view
+					this.elems = elems
 				}
 
+				// returns rendered element
 				render() {
-					return this.message.render()
+					let v = this.view
+					return $(super.render()).append(this.elems.map(function(i) {
+						return new v(new Bundle(document.createElement('div')), i).render()
+					})).get()
 				}
 			}
 
-			class JoinMessage {
-				constructor(who, channel) {
-					this.message = new Message(who + ' has joined ' + channel)
+			class ChannelView extends View {
+				constructor(bundle, chan) {
+					super(bundle)
+					this.chan = chan
 				}
 
+				// returns rendered element
 				render() {
-					return this.message.render()
+					let chan = this.chan
+					return $(super.render()).text(this.chan).click(function() {
+						alert('Connecting to '+chan)
+					})
 				}
 			}
 
-			class PartMessage {
-				constructor(who, channel, reason) {
-					this.message = new Message(who + ' has left ' + channel + ': ' + reason)
-				}
+			// Set new UI
+			new ListView(new Bundle($('#content').get()), ChannelView, ['#firefox', '#haskell']).render()
 
-				render() {
-					return this.message.render()
-				}
-			}
-
-			class KickMessage {
-				constructor(who, channel, by, reason) {
-					this.message = new Message(who + ' was kicked from ' + channel + ' by ' + by + ': ' + reason)
-				}
-
-				render() {
-					return this.message.render()
-				}
-			}
-
-			class PmMessage {
-				constructor(nick, message) {
-					this.message = new Message('pm from ' + nick + ': ' + message)
-				}
-
-				render() {
-					return this.message.render()
-				}
-			}
-
-			function addMessage(msg) {
-				$('#messages').append(msg.render())
-			}
-
-			var client = new irc.Client('irc.mozilla.org', 'erktest', config);
-
-			// error handler
-			client.addListener('error', function(message) {
-				console.log('error: ', message);
-			});
-
-			// message handler
-			client.addListener('message', function (from, to, message) {
-				addMessage(new MsgMessage(from, to, message))
-			});
-
-			// log other things
-			client.addListener('pm', function(nick, message) {
-				addMessage(new PmMessage(nick, message))
-			});
-
-			client.addListener('join', function(channel, who) {
-				addMessage(new JoinMessage(who, channel))
-			});
-			client.addListener('part', function(channel, who, reason) {
-				addMessage(new PartMessage(channel, who, reason))
-			});
-			client.addListener('kick', function(channel, who, by, reason) {
-				addMessage(new KickMessage(channel, who, by, reason))
-			});
-
-			// submit on enter
-			$('#response').keypress(function (e) {
-				if (e.which == 13) {
-					var f = config.userName,
-						t = config.channels[0],
-						msg = $('#response').val()
-					client.say(t, msg)
-					// Must display own messages.
-					addMessage(new MsgMessage(f, t, msg))
-					$('#response').val('')
-					return false;
-				}
-			});
-
-			$('#response').focus()
+			// class Message {
+			// 	constructor(message) {
+			// 		this.message = message
+			// 	}
+			//
+			// 	render() {
+			// 		var m = document.createElement('div')
+			// 		$(m).text(this.message).addClass('msg')
+			// 		return m
+			// 	}
+			// }
+			//
+			// class MsgMessage {
+			// 	constructor(from, to, message) {
+			// 		this.message = new Message(from + ' => ' + to + ': ' + message)
+			// 	}
+			//
+			// 	render() {
+			// 		return this.message.render()
+			// 	}
+			// }
+			//
+			// class JoinMessage {
+			// 	constructor(who, channel) {
+			// 		this.message = new Message(who + ' has joined ' + channel)
+			// 	}
+			//
+			// 	render() {
+			// 		return this.message.render()
+			// 	}
+			// }
+			//
+			// class PartMessage {
+			// 	constructor(who, channel, reason) {
+			// 		this.message = new Message(who + ' has left ' + channel + ': ' + reason)
+			// 	}
+			//
+			// 	render() {
+			// 		return this.message.render()
+			// 	}
+			// }
+			//
+			// class KickMessage {
+			// 	constructor(who, channel, by, reason) {
+			// 		this.message = new Message(who + ' was kicked from ' + channel + ' by ' + by + ': ' + reason)
+			// 	}
+			//
+			// 	render() {
+			// 		return this.message.render()
+			// 	}
+			// }
+			//
+			// class PmMessage {
+			// 	constructor(nick, message) {
+			// 		this.message = new Message('pm from ' + nick + ': ' + message)
+			// 	}
+			//
+			// 	render() {
+			// 		return this.message.render()
+			// 	}
+			// }
+			//
+			// function addMessage(msg) {
+			// 	$('#messages').append(msg.render())
+			// }
+			//
+			// var client = new irc.Client('irc.mozilla.org', 'erktest', config);
+			//
+			// // error handler
+			// client.addListener('error', function(message) {
+			// 	console.log('error: ', message);
+			// });
+			//
+			// // message handler
+			// client.addListener('message', function (from, to, message) {
+			// 	addMessage(new MsgMessage(from, to, message))
+			// });
+			//
+			// // log other things
+			// client.addListener('pm', function(nick, message) {
+			// 	addMessage(new PmMessage(nick, message))
+			// });
+			//
+			// client.addListener('join', function(channel, who) {
+			// 	addMessage(new JoinMessage(who, channel))
+			// });
+			// client.addListener('part', function(channel, who, reason) {
+			// 	addMessage(new PartMessage(channel, who, reason))
+			// });
+			// client.addListener('kick', function(channel, who, by, reason) {
+			// 	addMessage(new KickMessage(channel, who, by, reason))
+			// });
+			//
+			// // submit on enter
+			// $('#response').keypress(function (e) {
+			// 	if (e.which == 13) {
+			// 		var f = config.userName,
+			// 			t = config.channels[0],
+			// 			msg = $('#response').val()
+			// 		client.say(t, msg)
+			// 		// Must display own messages.
+			// 		addMessage(new MsgMessage(f, t, msg))
+			// 		$('#response').val('')
+			// 		return false;
+			// 	}
+			// });
+			//
+			// $('#response').focus()
 
 		</script>
 	</body>

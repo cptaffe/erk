@@ -1,7 +1,7 @@
 {
 	"userName": "erktest",
 	"realName": "Erk Client Test",
-	"server": "irc.freenode.net",
+	"server": "irc.mozilla.org",
 	"port": 6667,
-	"channels": ["#haskell"]
+	"channels": ["#firefox"]
 }
