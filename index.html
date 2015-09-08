@@ -87,6 +87,23 @@
 				}
 			}
 
+			class Channel {
+				constructor(client, chan) {
+					this.client = client
+					this.chan = chan
+				}
+
+				toString() {
+					return this.chan
+				}
+
+				connect() {
+					this.client.join(this.chan, function(from, to, message) {
+
+					})
+				}
+			}
+
 			class ChannelView extends View {
 				constructor(bundle, chan) {
 					super(bundle)
@@ -97,122 +114,80 @@
 				render() {
 					let chan = this.chan
 					return $(super.render()).text(this.chan).click(function() {
-						alert('Connecting to '+chan)
+						chan.connect()
 					})
 				}
 			}
 
-			// Set new UI
-			new ListView(new Bundle($('#content').get()), ChannelView, ['#firefox', '#haskell']).render()
+			// IRC Client
+			let client = new irc.Client('irc.mozilla.org', 'erktest', config);
 
-			// class Message {
-			// 	constructor(message) {
-			// 		this.message = message
-			// 	}
-			//
-			// 	render() {
-			// 		var m = document.createElement('div')
-			// 		$(m).text(this.message).addClass('msg')
-			// 		return m
-			// 	}
-			// }
-			//
-			// class MsgMessage {
-			// 	constructor(from, to, message) {
-			// 		this.message = new Message(from + ' => ' + to + ': ' + message)
-			// 	}
-			//
-			// 	render() {
-			// 		return this.message.render()
-			// 	}
-			// }
-			//
-			// class JoinMessage {
-			// 	constructor(who, channel) {
-			// 		this.message = new Message(who + ' has joined ' + channel)
-			// 	}
-			//
-			// 	render() {
-			// 		return this.message.render()
-			// 	}
-			// }
-			//
-			// class PartMessage {
-			// 	constructor(who, channel, reason) {
-			// 		this.message = new Message(who + ' has left ' + channel + ': ' + reason)
-			// 	}
-			//
-			// 	render() {
-			// 		return this.message.render()
-			// 	}
-			// }
-			//
-			// class KickMessage {
-			// 	constructor(who, channel, by, reason) {
-			// 		this.message = new Message(who + ' was kicked from ' + channel + ' by ' + by + ': ' + reason)
-			// 	}
-			//
-			// 	render() {
-			// 		return this.message.render()
-			// 	}
-			// }
-			//
-			// class PmMessage {
-			// 	constructor(nick, message) {
-			// 		this.message = new Message('pm from ' + nick + ': ' + message)
-			// 	}
-			//
-			// 	render() {
-			// 		return this.message.render()
-			// 	}
-			// }
-			//
-			// function addMessage(msg) {
-			// 	$('#messages').append(msg.render())
-			// }
-			//
-			// var client = new irc.Client('irc.mozilla.org', 'erktest', config);
-			//
-			// // error handler
-			// client.addListener('error', function(message) {
-			// 	console.log('error: ', message);
-			// });
-			//
-			// // message handler
-			// client.addListener('message', function (from, to, message) {
-			// 	addMessage(new MsgMessage(from, to, message))
-			// });
-			//
-			// // log other things
-			// client.addListener('pm', function(nick, message) {
-			// 	addMessage(new PmMessage(nick, message))
-			// });
-			//
-			// client.addListener('join', function(channel, who) {
-			// 	addMessage(new JoinMessage(who, channel))
-			// });
-			// client.addListener('part', function(channel, who, reason) {
-			// 	addMessage(new PartMessage(channel, who, reason))
-			// });
-			// client.addListener('kick', function(channel, who, by, reason) {
-			// 	addMessage(new KickMessage(channel, who, by, reason))
-			// });
-			//
-			// // submit on enter
-			// $('#response').keypress(function (e) {
-			// 	if (e.which == 13) {
-			// 		var f = config.userName,
-			// 			t = config.channels[0],
-			// 			msg = $('#response').val()
-			// 		client.say(t, msg)
-			// 		// Must display own messages.
-			// 		addMessage(new MsgMessage(f, t, msg))
-			// 		$('#response').val('')
-			// 		return false;
-			// 	}
-			// });
-			//
-			// $('#response').focus()
+			// Set new UI
+			new ListView(new Bundle($('#content').get()), ChannelView, [new Channel(client, '#firefox'), new Channel(client, '#haskell')]).render()
+
+			// Register handlers
+			client.addListener('registered', function(message) {
+				console.log('connected to server.')
+			})
+			client.addListener('motd', function(motd) {
+				console.log('motd: '+motd)
+			})
+			client.addListener('names', function(channel, names) {
+				console.log('names on '+channel+': '+names)
+			})
+			client.addListener('topic', function(channel, topic, nick, message) {
+				console.log(channel+' topic: '+topic+' set by '+nick)
+			})
+			client.addListener('join', function(channel, nick, message) {
+				console.log(nick+' joined '+channel)
+			})
+			client.addListener('part', function(channel, nick, reason, message) {
+				console.log(nick+' left '+channel+': '+reason)
+			})
+			client.addListener('quit', function(nick, reason, channels, message) {
+				console.log(nick+' quit '+channels+': '+reason)
+			})
+			client.addListener('kick', function(channel, nick, by, reason, message) {
+				console.log(nick+' kicked from '+channel+' by '+by+': '+reason)
+			})
+			client.addListener('kill', function(nick, reason, channels, message) {
+				console.log(nick+' killed from '+channels+': '+reason)
+			})
+			client.addListener('message#', function(nick, to, text, message) {
+				console.log(nick+'=>'+to+': '+text)
+			})
+			client.addListener('selfMessage', function(to, text) {
+				console.log('you=>'+to+': '+text)
+			})
+			client.addListener('notice', function(nick, to, text, message) {
+				console.log('[notice] '+nick+'=>'+to+': '+text)
+			})
+			client.addListener('ping', function(server) {
+				console.log('[ping] '+server)
+			})
+			client.addListener('pm', function(nick, text, message) {
+				console.log(nick+'=>you: '+text)
+			})
+			client.addListener('nick', function(oldnick, newnick, channels, message) {
+				console.log(oldnick+' is now '+newnick+' on '+channels)
+			})
+			client.addListener('invite', function(channel, from, message) {
+				console.log('invite to '+channel+' from '+from)
+			})
+			client.addListener('+mode', function(channel, by, mode, argument, message) {})
+			client.addListener('-mode', function(channel, by, mode, argument, message) {})
+			client.addListener('whois', function(info) {})
+			client.addListener('error', function(message) {
+				console.log('error: ', message);
+			})
+			client.addListener('action', function(from, to, text, message) {})
+			client.addListener('channellist', function(channel_list) {})
+			client.addListener('raw', function(message) {})
+
+			// Client to Client
+			client.addListener('ctcp-notice', function(from, to, text, message) {})
+			client.addListener('ctcp-privmsg', function(from, to, text, message) {})
+			client.addListener('ctcp-version', function(from, to, message) {})
 
 		</script>
 	</body>

@@ -2,6 +2,5 @@
 	"userName": "erktest",
 	"realName": "Erk Client Test",
 	"server": "irc.mozilla.org",
-	"port": 6667,
-	"channels": ["#firefox"]
+	"port": 6667
 }
