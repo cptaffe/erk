@@ -3,26 +3,30 @@
 	<head>
 		<style>
 			@import url(https://fonts.googleapis.com/css?family=Roboto+Mono);
+			@import url(https://fonts.googleapis.com/css?family=Ubuntu);
+			::-webkit-scrollbar {
+				display: none;
+			}
 			* {
 				margin: none;
 				padding: none;
 			}
 			body {
-				background-color: rgba(0, 0, 0, 0.7);
+				background-color: rgb(0, 0, 0);
 
 				/* Fonts */
 				color: white;
 				font-size: 10pt;
-				font-family: "Roboto Mono", sans-serif;
+				font-family: "Ubuntu", sans-serif;
 			}
 			pre {
-				font-size: 10pt;
 				font-family: "Roboto Mono", sans-serif;
 			}
 			#messages {
 				margin: 10px;
 			}
 			.msg {
+				-webkit-user-select: none;
 				margin: 5px;
 			}
 			#response {
@@ -48,257 +52,6 @@
 	</head>
 	<body>
 		<div id='content'></div>
-		<script>
-			'use strict';
-			let $ = require('jquery'),
-				irc = require('irc')
-
-			let config = require('./config.json')
-
-			class Bundle {
-				constructor(elem) {
-					$(elem).html('')
-					this.elem = elem
-				}
-
-				get element() {
-					return this.elem
-				}
-			}
-
-			class View {
-				constructor(bundle) {
-					this.bundle = bundle
-				}
-
-				render() {
-					$(this.bundle.element).html('')
-					return this.bundle.element
-				}
-			}
-
-			class ListView extends View {
-				constructor(bundle, view, elems) {
-					super(bundle)
-					this.view = view
-					this.elems = elems
-				}
-
-				// returns rendered element
-				render() {
-					let v = this.view
-					return $(super.render()).append(this.elems.map(function(i) {
-						return new v(new Bundle(document.createElement('div')), i).render()
-					})).get()
-				}
-			}
-
-			class Channel {
-				constructor(client, chan) {
-					this.client = client
-					this.chan = chan
-				}
-
-				toString() {
-					return this.chan
-				}
-
-				connect() {
-					this.client.join(this.chan, null)
-				}
-			}
-
-			class Message {
-				constructor(raw_msg) {
-					this.raw_msg = raw_msg
-				}
-
-				toString() {
-					// Return human readable command
-					return this.raw_msg.command
-				}
-			}
-
-			class RegisteredMessage extends Message {
-				constructor(raw_msg) {
-					super(raw_msg)
-				}
-
-				toString() {
-					return 'connected to server'
-				}
-			}
-
-			class MotdMessage extends Message {
-				constructor(motd) {
-					super(null)
-					this.motd = motd
-				}
-
-				toString() {
-					return 'Message of the day:\n'+this.motd
-				}
-			}
-
-			class NamesMessage extends Message {
-				constructor(channel, names) {
-					this.chan = channel
-					this.names = names
-				}
-
-				toString() {
-					return this.chan+' has members:'+names
-				}
-			}
-
-			class TopicMessage extends Message {
-				constructor(channel, topic, nick, message) {
-					super(message)
-					this.chan = channel
-					this.topic = topic
-					this.nick = nick
-				}
-
-				toString() {
-					return this.nick+'@'+this.chan+', topic:\n'+this.topic
-				}
-			}
-
-			class JoinMessage extends Message {
-				constructor(channel, nick, message) {
-					super(message)
-					this.chan = channel
-					this.nick = nick
-				}
-
-				toString() {
-					return this.nick+'@'+this.chan+' joined'
-				}
-			}
-
-			class MessageView extends View {
-				constructor(bundle, msg) {
-					super(bundle)
-					this.msg = msg
-				}
-
-				render() {
-					let msg = this.msg
-					return $(super.render()).append(function(){
-						return $(document.createElement('pre')).text(msg).css({'font-size': 10})
-					}())
-				}
-			}
-
-			class MessageListView extends ListView {
-				constructor(bundle, chan) {
-					super(bundle, MessageView, [])
-					this.chan = chan
-				}
-
-				append(msg) {
-					this.elems.push(msg)
-				}
-			}
-
-			class ChannelView extends View {
-				constructor(bundle, chan) {
-					super(bundle)
-					this.chan = chan
-				}
-
-				// returns rendered element
-				render() {
-					let chan = this.chan
-					return $(super.render()).text(this.chan).click(function() {
-						chan.connect()
-
-						// Replace view with new channel view
-						let msg = new MessageListView(new Bundle($('#content').get()), chan)
-						msg.render()
-
-						// Set up chan handlers to update message list view
-						client.addListener('error', function(message) {
-							msg.append(new Message(message))
-							msg.render()
-						})
-						client.addListener('registered', function(message) {
-							msg.append(new RegisteredMessage(message))
-							msg.render()
-						})
-						client.addListener('motd', function(motd) {
-							msg.append(new MotdMessage(motd))
-							msg.render()
-						})
-						client.addListener('names', function(channel, names) {
-							msg.append(new NamesMessage(channel, names))
-							msg.render()
-						})
-						client.addListener('topic', function(channel, topic, nick, message) {
-							msg.append(new TopicMessage(channel, topic, nick, message))
-							msg.render()
-						})
-						client.addListener('join', function(channel, nick, message) {
-							msg.append(new JoinMessage(channel, nick, message))
-							msg.render()
-						})
-						// client.addListener('part', function(channel, nick, reason, message) {
-						// 	console.log(nick+' left '+channel+': '+reason)
-						// })
-						// client.addListener('quit', function(nick, reason, channels, message) {
-						// 	console.log(nick+' quit '+channels+': '+reason)
-						// })
-						// client.addListener('kick', function(channel, nick, by, reason, message) {
-						// 	console.log(nick+' kicked from '+channel+' by '+by+': '+reason)
-						// })
-						// client.addListener('kill', function(nick, reason, channels, message) {
-						// 	console.log(nick+' killed from '+channels+': '+reason)
-						// })
-						// client.addListener('message#', function(nick, to, text, message) {
-						// 	console.log(nick+'=>'+to+': '+text)
-						// })
-						// client.addListener('selfMessage', function(to, text) {
-						// 	console.log('you=>'+to+': '+text)
-						// })
-						// client.addListener('notice', function(nick, to, text, message) {
-						// 	console.log('[notice] '+nick+'=>'+to+': '+text)
-						// })
-						// client.addListener('ping', function(server) {
-						// 	console.log('[ping] '+server)
-						// })
-						// client.addListener('pm', function(nick, text, message) {
-						// 	console.log(nick+'=>you: '+text)
-						// })
-						// client.addListener('nick', function(oldnick, newnick, channels, message) {
-						// 	console.log(oldnick+' is now '+newnick+' on '+channels)
-						// })
-						// client.addListener('invite', function(channel, from, message) {
-						// 	console.log('invite to '+channel+' from '+from)
-						// })
-						// client.addListener('+mode', function(channel, by, mode, argument, message) {})
-						// client.addListener('-mode', function(channel, by, mode, argument, message) {})
-						// client.addListener('whois', function(info) {})
-						// client.addListener('error', function(message) {
-						// 	console.log('error: ', message);
-						// })
-						// client.addListener('action', function(from, to, text, message) {})
-						// client.addListener('channellist', function(channel_list) {})
-						// client.addListener('raw', function(message) {})
-						//
-						// // Client to Client
-						// client.addListener('ctcp-notice', function(from, to, text, message) {})
-						// client.addListener('ctcp-privmsg', function(from, to, text, message) {})
-						// client.addListener('ctcp-version', function(from, to, message) {})
-					})
-				}
-			}
-
-			// IRC Client
-			let client = new irc.Client('irc.mozilla.org', 'erktest', config);
-
-			// Set new UI
-			new ListView(new Bundle($('#content').get()), ChannelView, [new Channel(client, '#firefox'), new Channel(client, '#haskell')]).render()
-
-		</script>
+		<script src='./m.js'></script>
 	</body>
 </html>
