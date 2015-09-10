@@ -1,4 +1,5 @@
-var app = require('app'), // Module to control application life.
+'use strict';
+let app = require('app'), // Module to control application life.
 	BrowserWindow = require('browser-window'); // Module to create native browser window.
 
 // Report crashes to our server.
@@ -6,7 +7,7 @@ require('crash-reporter').start();
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
-var mainWindow = null;
+let mainWindow = null;
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function() {

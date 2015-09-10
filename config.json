@@ -1,6 +1,6 @@
 {
 	"client": {
-		"userName": "erktest",
+		"userName": "erktest2",
 		"realName": "Erk Client Test"
 	},
 	"channels": ["#firefox", "#haskell", "#go-nuts"]
