@@ -1,4 +1,4 @@
-(function () {
+(function() {
     'use strict';
     let $ = require('jquery'),
         irc = require('irc');
@@ -6,12 +6,23 @@
     class Bundle {
         constructor(elem) {
             this.elem = elem;
-            this.main = $('#content');
         }
 
         get element() {
             return this.elem;
         }
+    };
+
+    let expandedCssDefault = {
+        'font-size': 12,
+        'overflow': 'auto',
+        'word-wrap': 'normal',
+        'white-space': 'pre-wrap',
+        'line-height': '150%',
+        'color': 'white',
+        // 'background-color': 'white',
+        'padding': '10px',
+        'border-radius': '3px'
     };
 
     class View {
@@ -24,18 +35,15 @@
         }
 
         asMainView() {
-            $(this.bundle.main).html('').append(this.render());
+            $('#content').html('').append(this.render());
         }
 
-        render() {
-            return $(this.bundle.element).html('');
+        render(elem) {
+            return $(this.bundle.element).html('').append(elem);
         }
 
         createBundle(tag) {
-            if (!tag) {
-                tag = '<div/>';
-            }
-            return new Bundle($(tag));
+            return new Bundle(document.createElement('div'));
         }
     };
 
@@ -46,43 +54,35 @@
         }
 
         render() {
-            return $(super.render()).append($(new View().render())
+            return super.render(new View().render()
             .text('note:').css({
                 'color': 'red',
                 'display': 'inline-block',
                 'margin-right': '5px'
-            })).append(this.children.map(function(c) {
+            }).append(this.children.map(function(c) {
                 return $(c.render()).css({
                     'display': 'inline-block'
                 });
-            }));
+            })));
         }
     };
 
     class ExpandView extends View {
-        constructor(bundle, lv, btxt) {
+        constructor(bundle, tv, bv) {
             super(bundle);
-            this.lv = lv;
-            this.btxt = btxt;
+            this.topView = tv;
+            this.bottomView = bv;
         }
 
         render() {
-            let exp = $(new View(this.createBundle('<pre/>')).render())
-            .text(this.btxt).css({
-                'font-size': 10,
-                'overflow': 'auto',
-                'word-wrap': 'normal',
-                'white-space': 'pre-wrap',
-                'color': 'white',
-                // 'background-color': 'white',
-                'padding': '10px',
-                'border-radius': '3px'
-            });
-            return $(super.render()).append($(this.lv).click(function() {
-                exp.toggle();
-            })).css({
-                'color': 'cyan'
-            }).append(exp.hide());
+            let bottom = this.bottomView.render(),
+                top = this.topView.render();
+            return super.render([
+                $(top).click(function() {
+                    $(bottom).toggle();
+                }),
+                $(bottom).hide()
+            ]);
         }
     };
 
@@ -95,10 +95,10 @@
 
         // returns rendered element
         render() {
-            let v = this.view;
-            return $(super.render()).append(this.elems.map(function(i) {
-                return new v(new View().bundle, i).render();
-            }));
+            let self = this;
+            return super.render(this.elems.map(function(i) {
+                    return new self.view(self.createBundle(), i).render();
+                }));
         }
     };
 
@@ -109,7 +109,7 @@
         }
 
         render() {
-            return $(super.render()).append($(new View().render())
+            return super.render(new View().render()
             .text(this.chan).css({
                 'background-color': '#708EA4',
                 'color': '#29516D'
@@ -123,8 +123,8 @@
             this.msg = msg;
         }
 
-        render() {
-            return $(super.render()).addClass('msg');
+        render(elem) {
+            return $(super.render(elem)).addClass('msg');
         }
     };
 
@@ -133,53 +133,113 @@
             super(bundle, msg);
             this.note = new NoteView(bundle, [{
                 render: function() {
-                    return $(new View().render()).text('connected to server');
+                    return new View().render().text('connected to server');
                 }
             }]);
         }
 
         render() {
-            return $(super.render()).append(this.note.render());
+            return super.render(this.note.render());
         }
     };
 
     class MotdMessageView extends MessageView {
         constructor(bundle, motd) {
             super(bundle);
-            this.expv = new ExpandView(bundle, $(new View().render())
-            .text('motd'), motd);
+            this.expv = new ExpandView(bundle, (function() {
+                class v extends View {
+                    render() {
+                        return super.render(new View().render().text('motd'))
+                    }
+                }
+                return new v();
+            })(), (function() {
+                class v extends View {
+                    render() {
+                        return super.render(new View().render().text(motd))
+                        .css(expandedCssDefault);
+                    }
+                }
+                return new v();
+            })());
         }
 
         render() {
-            return $(super.render()).append(this.expv.render());
+            return super.render(this.expv.render());
         }
     };
+
+    class AlteredView extends View {
+        constructor(bundle, operation) {
+            super(bundle);
+            this.operation = operation;
+        }
+
+        render() {
+            return this.operation(super.render());
+        }
+    }
 
     class NamesMessageView extends MessageView {
         constructor(bundle, channel, names) {
             super(bundle);
-            this.expv = new ExpandView(bundle, $(new View().render())
-            .text('members'), new ListView(bundle, function(bundle, i) {
-                // return an object with a render method
-                class v extends View {
-                    render() {
-                        return $(super.render()).text(JSON.stringify(i));
-                    }
-                };
-                return new v(bundle);
-            }, Object.keys(names)));
+            this.channel = channel;
+            this.names = names;
         }
 
         render() {
-            return $(super.render()).append(this.expv.render());
+            let self = this;
+            return super.render(new ExpandView(null, new AlteredView(null, function(e) {
+                    return e.text('users').css({
+                            'color': 'cyan'
+                        });
+                }), new AlteredView(null, function(e) {
+                    return e.append(Object.keys(self.names).map(function(n) {
+                        return new AlteredView(null, function(e) {
+                            let el = e.text(n).css({
+                                'display': 'inline-block',
+                                'margin-right': '2px',
+                                'margin-left': '2px'
+                            });
+                            if (self.names[n] == '@') {
+                                el.css({
+                                    'color': 'cyan'
+                                });
+                            } else if (self.names[n] == '+') {
+                                el.css({
+                                    'color': 'pink'
+                                });
+                            }
+                            return el;
+                        }).render();
+                    })).css(expandedCssDefault);
+                })).render());
         }
     };
 
     class TopicMessageView extends MessageView {
         constructor(bundle, channel, topic, nick, message) {
             super(bundle, message);
-            this.expv = new ExpandView(bundle, $(new View().render())
-            .text('topic at ' + channel + ' set by ' + nick), topic);
+            this.expv = new ExpandView(bundle, (function() {
+                class v extends View {
+                    render() {
+                        return super.render(new View().render()
+                        .text('topic at ' + channel + ' set by ' + nick))
+                        .css({
+                            'color': 'cyan'
+                        });
+                    }
+                }
+                return new v();
+            })(), (function() {
+                class v extends View {
+                    render() {
+                        return super.render(new View().render()
+                        .text(topic).css(expandedCssDefault));
+                    }
+                }
+                return new v();
+            })());
         }
 
         render() {
@@ -195,7 +255,7 @@
         }
 
         render() {
-            return $(super.render()).append($(new View().render())
+            return super.render(new View().render()
             .text(this.nick + ' joined ' + this.chan));
         }
     };
@@ -209,7 +269,7 @@
         }
 
         render() {
-            return $(super.render()).append($(new View().render())
+            return super.render(new View().render()
             .text(this.nick + ' left ' + this.chan + ': ' + this.reason));
         }
     };
@@ -224,7 +284,7 @@
 
         render() {
             let self = this;
-            return $(super.render()).append($(new View().render())
+            return super.render(new View().render()
             .text(this.nick + ' quit ' + function() {
                 let s = '';
                 self.chans.map(function(chan) {
@@ -248,7 +308,7 @@
         }
 
         render() {
-            return $(super.render()).append($(new View().render())
+            return super.render(new View().render()
             .text(this.nick + ' was kicked from ' + this.chan + ' by ' +
             this.by + ': ' + this.reason));
         }
@@ -263,7 +323,7 @@
         }
 
         render() {
-            return $(super.render()).append($(new View().render())
+            return super.render(new View().render()
             .text(this.nick + ' was killed from ' + function() {
                     let s = '';
                     this.chans.map(function(chan) {
@@ -286,18 +346,24 @@
         }
 
         render() {
-            return $(super.render()).append($(new View().render())
-            .text(this.nick + '=>' + this.to + ': ' + this.txt));
+            return super.render(new View().render()
+            .text(this.nick + ': ' + this.txt));
         }
     };
 
     class MessageListView extends ListView {
         constructor(bundle) {
             super(bundle, function(bundle, i) {
-                let r = i(bundle);
-                this.render = function() {
-                    return r.render();
-                };
+                class v extends View {
+                    constructor(renderable) {
+                        super();
+                        this.r = renderable;
+                    }
+                    render() {
+                        return super.render(this.r.render());
+                    }
+                }
+                return new v(i(bundle));
             }, []);
         }
 
@@ -319,8 +385,9 @@
         }
 
         disconnect(f) {
+            let self = this;
             this.client.addListener('error', function(message) {
-                console.error('connection failed: ' + JSON.stringify(message));
+                console.error('disconnection failed: ' + JSON.stringify(message));
                 f(false);
             });
             this.client.part(this.chan, function(nick, reason, message) {
@@ -369,7 +436,13 @@
                 'cursor': 'pointer',
                 'color': 'pink'
             }).click(function() {
-                $('#content').text('joining ' + chan.chan + '...');
+                class v extends View {
+                    render() {
+                        return super.render(new View().render())
+                        .text('joining ' + chan.chan + '...');
+                    }
+                }
+                new v().asMainView()
                 chan.connect(function(c, success) {
                     if (!success) {
                         // Abort
@@ -388,10 +461,10 @@
                             // s pressed
                             class v extends View {
                                 render() {
-                                    return $(super.render()).append(
-                                        $(new View(
-                                            this.createBundle('<textarea />')
-                                        ).render()).css({
+                                    return super.render(
+                                        new View(
+                                            this.createBundle('<div />')
+                                        ).render().css({
                                         'resize': 'none',
                                         'overflow': 'auto',
                                         'outline': 'none',
@@ -413,8 +486,8 @@
                     });
 
                     // Replace view with new channel view
-                    let msg = new MessageListView(new Bundle($('#content')));
-                    msg.render();
+                    let msg = new MessageListView();
+                    msg.asMainView();
 
                     client.addListener('error', function(message) {
                         msg.append(function(bundle) {
@@ -482,7 +555,7 @@
                                 channels, message);
                         });
                     });
-                    client.addListener('message#', function(nick, to, text,
+                    client.addListener('message'+c.chan, function(nick, to, text,
                         message) {
                         msg.append(function(bundle) {
                             return new MsgMessageView(bundle, nick, to, text,
@@ -541,48 +614,75 @@
     let cname = 'erktest';
 
     // Set new UI
-    function init(client) {
-        let channels = ['#firefox', '#haskell', '#go-nuts'];
-        return new ListView(new View().bundle, ChannelView,
-        channels.map(function(chan) {
-            return new Channel(client, chan, cname);
-        }));
-    }
-
-    (function f(f) {
-        (function() {
-            class v extends View {
-                render() {
-                    $(super.render()).text('connecting...');
-                }
-            }
-            new v(new Bundle()).asMainView();
-        })();
-
-        let c = new irc.Client('irc.mozilla.org', 'erktest', {
-            autoConnect: false,
-            userName: cname,
-            realName: 'Erk Test Client'
-        });
-        // Set up chan handlers to update message list view
-        c.addListener('error', function(message) {
-            console.log('An error occured: ' + JSON.stringify(message));
-            f(c, false);
-        });
-        c.connect(function() {
-            f(c, true);
-        });
-    })(function(c, success) {
-        if (success) {
-            init(c).asMainView();
-        } else {
-            // Connection error
-            class v extends View {
-                render() {
-                    $(super.render()).text('error connecting');
-                }
-            }
-            new v().asMainView();
+    class ChannelChooserView extends View {
+        constructor(bundle, client, channels) {
+            super(bundle);
+            this.client = client;
+            this.chans = channels;
         }
-    });
+
+        render() {
+            let self = this
+            return super.render([
+                new AlteredView(null, function(e) {
+                    return e.text('server channels:')
+                    .append(new ListView(null, ChannelView,
+                        self.chans.map(function(chan) {
+                            return new Channel(self.client, chan, cname);
+                        })
+                    ).render());
+                }).render(),
+                new AlteredView(null, function(e) {
+                    return e.text('favourites:')
+                    .append(new ListView(null, ChannelView,
+                        ['#firefox', '#mozilla'].map(function(chan) {
+                            return new Channel(self.client, chan, cname);
+                        })
+                    ).render());
+                }).render()
+            ]);
+        }
+    };
+
+    class Client {
+        constructor(client) {
+            this.client = client
+        }
+
+        connect(callback) {
+            this.client.addListener('error', function(message) {
+                console.log('An error occured: ' + JSON.stringify(message));
+                callback(false);
+            });
+            this.client.connect(function() {
+                callback(true);
+            });
+        }
+    };
+
+    (function(f) {
+        new AlteredView(null, function(e) {
+            return e.text('connecting...');
+        }).asMainView();
+        let client = new Client(new irc.Client('irc.mozilla.org', 'erktest', {
+            autoConnect: false,
+        }))
+        client.connect(function(success) {
+            if (success) {
+                new AlteredView(null, function(e) {
+                    return e.text('listing channels...');
+                }).asMainView();
+
+                client.client.addListener('channellist', function(channels) {
+                    new ChannelChooserView(null, client.client,
+                        channels).asMainView();
+                });
+                client.client.list();
+            } else {
+                new AlteredView(null, function(e) {
+                    return e.text('error connecting ');
+                }).asMainView();
+            }
+        });
+    })();
 })();
